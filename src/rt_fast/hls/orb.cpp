@@ -184,13 +184,6 @@ THREAD_ENTRY() {
         const int width = (maxBorderX-minBorderX);
         const int height = (maxBorderY-minBorderY);
 
-        /*
-        const int nCols = width/W;
-        const int nRows = height/W;
-        const int wCell = (width/nCols);
-        const int hCell = (height/nRows);
-        */
-
         const int wCell = 50;
         const int hCell = 50;
         const int nCols = width/50;
@@ -222,10 +215,7 @@ THREAD_ENTRY() {
 				if(maxX>maxBorderX)
 					maxX = maxBorderX;
 
-				//vector<cv::KeyPoint> vKeysCell;
-
 				hls::Point_<uint16> vKeysCell[256];
-
                 int nPoints;
 
                 hls::Mat<FAST_WINDOW_SIZE,FAST_WINDOW_SIZE,HLS_8UC1> cell_stream;
@@ -238,8 +228,7 @@ THREAD_ENTRY() {
 				    mat_copy( image_data, cell_stream, iniY,  iniX,  cache_cnt);
 				    nPoints = _FASTX<uint16, 256,HLS_8UC1, FAST_WINDOW_SIZE,FAST_WINDOW_SIZE>(cell_stream, vKeysCell,  iniThFAST, true);
                 }
-				//FPGA::FPGA_FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),	vKeysCell,iniThFAST,true);
-
+	
                 /*
 				if(nPoints == 0)
 				{
