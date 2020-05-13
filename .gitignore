@@ -53,3 +53,5 @@ dkms.conf
 
 Thirdparty/*/build/
 build.sw/
+build.hw/
+.Xil/
