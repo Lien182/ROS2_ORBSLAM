@@ -53,6 +53,7 @@
 *
 */
 
+#include <iostream>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -62,6 +63,7 @@
 
 #include "ORBextractor.h"
 
+#include "FPGA.h"
 
 using namespace cv;
 using namespace std;
@@ -770,13 +772,26 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
 
     for (int level = 0; level < nlevels; ++level)
     {
+        vector<cv::KeyPoint> vToDistributeKeys;
+        vToDistributeKeys.reserve(nfeatures*10);
+
+
         const int minBorderX = EDGE_THRESHOLD-3;
         const int minBorderY = minBorderX;
         const int maxBorderX = mvImagePyramid[level].cols-EDGE_THRESHOLD+3;
         const int maxBorderY = mvImagePyramid[level].rows-EDGE_THRESHOLD+3;
 
-        vector<cv::KeyPoint> vToDistributeKeys;
-        vToDistributeKeys.reserve(nfeatures*10);
+
+#if USE_FPGA==1 
+        vector<uint32_t> kpts;
+        FPGA::Compute_Keypoints( mvImagePyramid[level].data , mvImagePyramid[level].cols, mvImagePyramid[level].rows, nfeatures, kpts );
+
+        for(vector<uint32_t>::iterator vit=kpts.begin(); vit!=kpts.end();vit++)
+        {
+            vToDistributeKeys.push_back(KeyPoint((float)(*vit & 0x0000ffff), (float)((*vit & 0xffff0000)>>16), 7.f, -1, 0));
+        }
+
+#else
 
         const float width = (maxBorderX-minBorderX);
         const float height = (maxBorderY-minBorderY);
@@ -806,12 +821,12 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
                     maxX = maxBorderX;
 
                 vector<cv::KeyPoint> vKeysCell;
-                FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
+                FPGA::FPGA_FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
                      vKeysCell,iniThFAST,true);
 
                 if(vKeysCell.empty())
                 {
-                    FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
+                    FPGA::FPGA_FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
                          vKeysCell,minThFAST,true);
                 }
 
@@ -827,6 +842,8 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
 
             }
         }
+
+     #endif
 
         vector<KeyPoint> & keypoints = allKeypoints[level];
         keypoints.reserve(nfeatures);
@@ -932,13 +949,13 @@ void ORBextractor::ComputeKeyPointsOld(std::vector<std::vector<KeyPoint> > &allK
 
                 cellKeyPoints[i][j].reserve(nfeaturesCell*5);
 
-                FAST(cellImage,cellKeyPoints[i][j],iniThFAST,true);
+                FPGA::FPGA_FAST(cellImage,cellKeyPoints[i][j],iniThFAST,true);
 
                 if(cellKeyPoints[i][j].size()<=3)
                 {
                     cellKeyPoints[i][j].clear();
 
-                    FAST(cellImage,cellKeyPoints[i][j],minThFAST,true);
+                    FPGA::FPGA_FAST(cellImage,cellKeyPoints[i][j],minThFAST,true);
                 }
 
 

@@ -29,10 +29,10 @@ int main(int argc, char **argv)
     vector<double> vTimestamps;
     LoadImages(string(argv[3]), vstrImageLeft, vstrImageRight, vTimestamps);
 
-    const int nImages = 100;// vstrImageLeft.size();
+    const int nImages = vstrImageLeft.size();
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::STEREO,false);
+    ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::STEREO,true);
 
     // Vector for tracking time statistics
     vector<float> vTimesTrack;
@@ -53,8 +53,7 @@ int main(int argc, char **argv)
 
         if(imLeft.empty())
         {
-            cerr << endl << "Failed to load image at: "
-                 << string(vstrImageLeft[ni]) << endl;
+            cerr << endl << "Failed to load image at: " << string(vstrImageLeft[ni]) << endl;
             return 1;
         }
 
