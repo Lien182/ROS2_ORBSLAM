@@ -163,7 +163,9 @@ void mat_copy( uint8 * data, hls::Mat<FAST_WINDOW_SIZE,FAST_WINDOW_SIZE,HLS_8UC1
 
 THREAD_ENTRY() {
 
-    
+    THREAD_INIT();
+	uint32 initdata = GET_INIT_DATA();
+
     uint8 image_data[IMAGE_CACHE_WIDTH*IMAGE_CACHE_HEIGHT];
 
 	while(1)
@@ -174,7 +176,7 @@ THREAD_ENTRY() {
 		uint32 image_width  = MBOX_GET(resources_fast_request);
 		uint32 image_height = MBOX_GET(resources_fast_request);
 
-		 const int minBorderX = EDGE_THRESHOLD-3;
+		const int minBorderX = EDGE_THRESHOLD-3;
         const int minBorderY = minBorderX;
         const int maxBorderX = image_width -EDGE_THRESHOLD+3;
         const int maxBorderY = image_height-EDGE_THRESHOLD+3;
@@ -195,7 +197,7 @@ THREAD_ENTRY() {
         const int nRows = height/50;
 
 
-        read_next_lines;
+        //read_next_lines;
 
 
 		for(int i=0; i<nRows; i++)
