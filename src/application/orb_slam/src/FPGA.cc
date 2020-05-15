@@ -1,5 +1,11 @@
 #include "FPGA.h"
 
+extern "C" {
+    #include "reconos.h"
+    #include "reconos_app.h"
+}
+
+
 #include <iostream>
 
 #include <stdint.h>
@@ -17,6 +23,10 @@
 #define IMAGE_CACHE_WIDTH   1400
 #define IMAGE_CACHE_HEIGHT  128
 
+
+static pthread_mutex_t fpga_mutex=PTHREAD_MUTEX_INITIALIZER;
+
+
 void FPGA::FPGA_FAST( InputArray image, CV_OUT std::vector<KeyPoint>& keypoints,
                       int threshold, bool nonmaxSuppression )
 {
@@ -30,9 +40,47 @@ static const int iniThFAST = 20;
 static const int minThFAST = 7;
 
 
+ 
+
 
 void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t image_height, uint32_t nfeatures, vector<uint32_t> & keypoints )
 {
+
+#if 1
+    uint32_t res; 
+    pthread_mutex_lock( &fpga_mutex );
+
+    mbox_put(resources_fast_request, (uint32_t)image_ptr);
+	mbox_put(resources_fast_request, image_width);
+	mbox_put(resources_fast_request, image_height);
+
+    uint32_t tmp = (uint32_t)image_ptr;
+
+    keypoints.clear();
+
+    std::cout << "image_ptr " <<  tmp << "; image_width"  <<  image_width << "; image_height" <<  image_height << std::endl;
+
+    int cnt = 0;
+
+    do{
+
+        res = mbox_get(resources_fast_response);        
+        cnt++;
+        if(res != 0xffffffff)
+        {
+            keypoints.push_back(res);
+        }
+
+        //std::cout << cnt++ << " Got res: " << res << std::endl;
+
+    }while(res != 0xffffffff);
+    std::cout << cnt << " Got res: " << res << std::endl;
+    pthread_mutex_unlock( &fpga_mutex );
+
+
+
+}
+#else
     uint8_t image_data[IMAGE_CACHE_WIDTH*IMAGE_CACHE_HEIGHT];
 
     uint32_t cache_cnt = 0;
@@ -130,4 +178,6 @@ void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t
 
         }
     }
+
 }
+#endif

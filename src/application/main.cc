@@ -8,6 +8,12 @@
 
 #include "orb_slam/include/System.h"
 
+extern "C" {
+    #include "reconos.h"
+    #include "reconos_app.h"
+}
+
+
 #define COMPILEDWITHC11
 
 using namespace std;
@@ -23,6 +29,32 @@ int main(int argc, char **argv)
         return 1;
     }
 
+
+    //Reconos Stuff
+
+    reconos_init();
+	reconos_app_init();
+	int clk = reconos_clock_threads_set(100000);
+
+    reconos_thread_create_hwt_fast(0);
+
+/*
+    uint8_t image[1000*1000];
+
+
+    for(int i = 0; i < 10; i++)
+    {
+        mbox_put(resources_fast_request, (uint32_t)image);
+	    mbox_put(resources_fast_request, 999);
+	    mbox_put(resources_fast_request, 999);
+
+        uint32_t res = mbox_get(resources_fast_response);
+        std::cout << "Got res: " << res << std::endl;
+    }
+
+    return 0;
+*/
+
     // Retrieve paths to images
     vector<string> vstrImageLeft;
     vector<string> vstrImageRight;
@@ -32,7 +64,7 @@ int main(int argc, char **argv)
     const int nImages = vstrImageLeft.size();
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::STEREO,true);
+    ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::STEREO,false);
 
     // Vector for tracking time statistics
     vector<float> vTimesTrack;
