@@ -8,11 +8,14 @@
 
 #include "orb_slam/include/System.h"
 
+#if USE_FPGA == 1
+
 extern "C" {
     #include "reconos.h"
     #include "reconos_app.h"
 }
 
+#endif
 
 #define COMPILEDWITHC11
 
@@ -32,11 +35,14 @@ int main(int argc, char **argv)
 
     //Reconos Stuff
 
+#if USE_FPA==1
     reconos_init();
 	reconos_app_init();
 	int clk = reconos_clock_threads_set(100000);
 
     reconos_thread_create_hwt_fast(0);
+
+#endif
 
 /*
     uint8_t image[1000*1000];
@@ -64,8 +70,11 @@ int main(int argc, char **argv)
     const int nImages = vstrImageLeft.size();
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
+#if USE_FPGA == 0
+    ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::STEREO,true);
+#else
     ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::STEREO,false);
-
+#endif
     // Vector for tracking time statistics
     vector<float> vTimesTrack;
     vTimesTrack.resize(nImages);

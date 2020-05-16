@@ -1,9 +1,13 @@
 #include "FPGA.h"
 
+#if USE_FPGA == 1
+
 extern "C" {
     #include "reconos.h"
     #include "reconos_app.h"
 }
+
+#endif
 
 
 #include <iostream>
@@ -17,7 +21,12 @@ extern "C" {
 
 #define MEM_READ(src, dest, n) memcpy((void*)dest, (void*)src, n)
 
-#define read_next_lines {for(int i = 0; i < FAST_WINDOW_SIZE; i++){ MEM_READ(image_ptr + cache_cnt*image_width, image_data + IMAGE_CACHE_WIDTH*(cache_cnt%IMAGE_CACHE_HEIGHT), image_width );} cache_cnt+=50;}
+
+#define read_next_lines {for(int i = 0; i < FAST_WINDOW_SIZE; i++){ \
+                                    offset = ((uint64_t)image_ptr + cache_cnt*(image_width))&3; \
+                                    MEM_READ((((uint64_t)image_ptr + cache_cnt*(image_width))&(~3)), image_data + IMAGE_CACHE_WIDTH*(cache_cnt%IMAGE_CACHE_HEIGHT),\
+                                    ((image_width+offset+3)&(~3)));} cache_cnt+=50;}
+
 #define W 30
 
 #define IMAGE_CACHE_WIDTH   1400
@@ -46,7 +55,7 @@ static const int minThFAST = 7;
 void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t image_height, uint32_t nfeatures, vector<uint32_t> & keypoints )
 {
 
-#if 1
+#if USE_FPGA == 1
     uint32_t res; 
     pthread_mutex_lock( &fpga_mutex );
 
@@ -58,7 +67,7 @@ void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t
 
     keypoints.clear();
 
-    std::cout << "image_ptr " <<  tmp << "; image_width"  <<  image_width << "; image_height" <<  image_height << std::endl;
+    //std::cout << "image_ptr " <<  tmp << "; image_width"  <<  image_width << "; image_height" <<  image_height << std::endl;
 
     int cnt = 0;
 
@@ -74,7 +83,7 @@ void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t
         //std::cout << cnt++ << " Got res: " << res << std::endl;
 
     }while(res != 0xffffffff);
-    std::cout << cnt << " Got res: " << res << std::endl;
+    //std::cout << cnt << " Got res: " << res << std::endl;
     pthread_mutex_unlock( &fpga_mutex );
 
 
@@ -107,9 +116,11 @@ void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t
     const int nCols = width/50;
     const int nRows = height/50;
 
+    uint64_t offset = 0;
 
     read_next_lines;
 
+    uint32_t nkeypoints = 0;
 
     //std::cout << "nCols " << nCols << "; nRows " << nRows << "; wCell " << wCell << ";hCell " << hCell << std::endl;
 
@@ -149,7 +160,7 @@ void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t
             {
                 for(int j = 0; j < (50); j++)
                 {
-                    tmp.data[i*50+j] = image_data[(j+iniY)+ ((iniX+i+cache_cnt) %IMAGE_CACHE_HEIGHT) *IMAGE_CACHE_WIDTH];
+                    tmp.data[i*50+j] = image_data[offset+(j+iniY)+ ((iniX+i+cache_cnt) %IMAGE_CACHE_HEIGHT) *IMAGE_CACHE_WIDTH];
                 }
             }
             
@@ -166,6 +177,9 @@ void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t
             //    std::cout << "2. Attempt: Number of keypoints " << vKeysCell.size() << std::endl;
             //}
 
+            nkeypoints+= vKeysCell.size();
+            
+
             if(!vKeysCell.empty())
             {
                 for(vector<cv::KeyPoint>::iterator vit=vKeysCell.begin(); vit!=vKeysCell.end();vit++)
@@ -178,6 +192,8 @@ void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t
 
         }
     }
+
+    std::cout << "Size of the cell vector: " << nkeypoints << std::endl;
 
 }
 #endif

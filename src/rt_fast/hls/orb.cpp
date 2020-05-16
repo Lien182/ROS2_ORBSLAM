@@ -19,7 +19,7 @@ const int minThFAST = 7;
 
 #define FAST_WINDOW_SIZE 50
 
-#define IMAGE_CACHE_WIDTH   1400
+#define IMAGE_CACHE_WIDTH   1280
 #define IMAGE_CACHE_HEIGHT  128
 
 //generate array 
@@ -280,7 +280,7 @@ void  __FASTX(
 }
 
 
-void mat_copy( uint8 * data, hls::Mat<FAST_WINDOW_SIZE,FAST_WINDOW_SIZE,HLS_8UC1>  &_dest, int iniY, int iniX, int cache_cnt)
+void mat_copy( uint8 * data, hls::Mat<FAST_WINDOW_SIZE,FAST_WINDOW_SIZE,HLS_8UC1>  &_dest, int iniY, int iniX, int cache_cnt, uint32 offset)
 {
     for(int i = 0; i < (FAST_WINDOW_SIZE); i++)
     {
@@ -291,19 +291,22 @@ void mat_copy( uint8 * data, hls::Mat<FAST_WINDOW_SIZE,FAST_WINDOW_SIZE,HLS_8UC1
     }
 }
 
-void array_copy( uint8 * data, uint8_t * _dest, int iniY, int iniX, int cache_cnt)
+void array_copy( uint8 * data, uint8_t * _dest, int iniY, int iniX, int cache_cnt, uint32 offset)
 {
     for(int i = 0; i < (FAST_WINDOW_SIZE); i++)
     {
         for(int j = 0; j < (FAST_WINDOW_SIZE); j++)
         {
-            _dest[j+i*50] = data[(j+iniY)+ ((iniX+i+cache_cnt) %IMAGE_CACHE_HEIGHT) *IMAGE_CACHE_WIDTH];
+            _dest[j+i*50] = data[offset + (j+iniY)+ ((iniX+i+cache_cnt) %IMAGE_CACHE_HEIGHT) *IMAGE_CACHE_WIDTH];
         }
     }
 }
 
 
-#define read_next_lines {for(int i = 0; i < FAST_WINDOW_SIZE; i++){ MEM_READ((((image_ptr + cache_cnt*(image_width))+3)&(~3)), image_data + IMAGE_CACHE_WIDTH*(cache_cnt%IMAGE_CACHE_HEIGHT),((image_width+3)&(~3)));} cache_cnt+=50;}
+#define read_next_lines {for(int i = 0; i < FAST_WINDOW_SIZE; i++){ \
+                                    offset = (image_ptr + cache_cnt*(image_width))&3; \
+                                    MEM_READ(((image_ptr + cache_cnt*(image_width))&(~3)), image_data + IMAGE_CACHE_WIDTH*(cache_cnt%IMAGE_CACHE_HEIGHT),\
+                                    ((image_width+offset+3)&(~3)));} cache_cnt+=50;}
 
 
 
@@ -317,10 +320,13 @@ THREAD_ENTRY() {
 	while(1)
 	{
         uint32 cache_cnt =0 ;
+       
 
 		uint32 image_ptr    = MBOX_GET(resources_fast_request);
 		uint32 image_width  = MBOX_GET(resources_fast_request);
 		uint32 image_height = MBOX_GET(resources_fast_request);
+
+        uint32 offset = (image_ptr + cache_cnt*image_width) & 3;
         
 		const int minBorderX = EDGE_THRESHOLD-3;
         const int minBorderY = minBorderX;
@@ -374,7 +380,7 @@ THREAD_ENTRY() {
                     #pragma HLS dataflow
                     #pragma HLS stream depth=2500 variable=cell_stream.data_stream
                     
-                    mat_copy( image_data, cell_stream, iniY,  iniX,  cache_cnt);
+                    mat_copy( image_data, cell_stream, iniY,  iniX,  cache_cnt, offset);
 				    //array_copy( image_data, cell_array, iniY,  iniX,  cache_cnt);
 				    
                     _FASTX(cell_stream, vKeysCell,  iniThFAST, true, nPoints);

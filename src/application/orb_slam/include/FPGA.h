@@ -7,7 +7,7 @@
 using namespace cv;
 using namespace std;
 
-#define USE_FPGA 1
+
 #define FPGA_SIMULATION 0 
 
 namespace FPGA{
