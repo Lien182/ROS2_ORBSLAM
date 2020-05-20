@@ -49,9 +49,6 @@ static const int iniThFAST = 20;
 static const int minThFAST = 7;
 
 
- 
-
-
 void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t image_height, uint32_t nfeatures, vector<uint32_t> & keypoints )
 {
 
@@ -87,14 +84,13 @@ void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t
     pthread_mutex_unlock( &fpga_mutex );
 
 
-
 }
 #else
     uint8_t image_data[IMAGE_CACHE_WIDTH*IMAGE_CACHE_HEIGHT];
 
     uint32_t cache_cnt = 0;
 
-    std::cout << "Image width: " << image_width << "; Image height " << image_height << std::endl;
+    //std::cout << "Image width: " << image_width << "; Image height " << image_height << std::endl;
 
     const int minBorderX = EDGE_THRESHOLD-3;
     const int minBorderY = minBorderX;
@@ -193,7 +189,7 @@ void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t
         }
     }
 
-    std::cout << "Size of the cell vector: " << nkeypoints << std::endl;
+    //std::cout << "Size of the cell vector: " << nkeypoints << std::endl;
 
 }
 #endif

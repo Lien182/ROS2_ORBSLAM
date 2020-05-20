@@ -291,7 +291,7 @@ void mat_copy( uint8 * data, hls::Mat<FAST_WINDOW_SIZE,FAST_WINDOW_SIZE,HLS_8UC1
     }
 }
 
-void array_copy( uint8 * data, uint8_t * _dest, int iniY, int iniX, int cache_cnt, uint32 offset)
+void array_copy( uint8_t * data, uint8_t * _dest, int iniY, int iniX, int cache_cnt, uint32 offset)
 {
     for(int i = 0; i < (FAST_WINDOW_SIZE); i++)
     {
@@ -405,7 +405,7 @@ THREAD_ENTRY() {
                 */
 
                 for(int i = 0; i < nPoints; i++)
-                    MBOX_PUT(resources_fast_response, vKeysCell[i].x | (vKeysCell[i].y << 16));
+                    MBOX_PUT(resources_fast_response, (vKeysCell[i].x + j*wCell) | ((vKeysCell[i].y + i*hCell) << 16));                 
 
 				
 			}
