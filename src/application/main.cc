@@ -45,7 +45,6 @@ int main(int argc, char **argv)
 	int clk = reconos_clock_threads_set(100000);
 
     reconos_thread_create_hwt_fast(0);
-    
 
 #endif
 /*

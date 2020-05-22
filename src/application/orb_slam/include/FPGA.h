@@ -7,7 +7,8 @@
 using namespace cv;
 using namespace std;
 
-
+#define USE_RECONOS 1
+#define USE_FPGA 1
 #define FPGA_SIMULATION 0 
 
 namespace FPGA{
@@ -16,5 +17,5 @@ namespace FPGA{
 
     void Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t image_height, uint32_t nfeatures, vector<uint32_t> & keypoints  );
 
-   
+
 }
