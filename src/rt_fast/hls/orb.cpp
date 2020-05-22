@@ -382,11 +382,16 @@ THREAD_ENTRY() {
                     
                     mat_copy( image_data, cell_stream, iniY,  iniX,  cache_cnt, offset);
 				    //array_copy( image_data, cell_array, iniY,  iniX,  cache_cnt);
-				    
+				    #pragma HLS INLINE
                     _FASTX(cell_stream, vKeysCell,  iniThFAST, true, nPoints);
                     //for(int i = 0; i < 100; i+=2)
                     //MBOX_PUT(resources_fast_response, (uint32)image_data[0]);
+               
+                        //MBOX_PUT(resources_fast_response, (vKeysCell[i].x) | ((vKeysCell[i].y) << 16));                 
                 }
+
+                    for(int k = 0; k < nPoints; k++)
+                        MBOX_PUT(resources_fast_response, (vKeysCell[i].x + j*wCell) | ((vKeysCell[i].y + i*hCell) << 16));  
 	
                /*
 				if(nPoints == 0)
@@ -404,8 +409,6 @@ THREAD_ENTRY() {
                 
                 */
 
-                for(int i = 0; i < nPoints; i++)
-                    MBOX_PUT(resources_fast_response, (vKeysCell[i].x + j*wCell) | ((vKeysCell[i].y + i*hCell) << 16));                 
 
 				
 			}
