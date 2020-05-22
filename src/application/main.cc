@@ -8,7 +8,10 @@
 
 #include "orb_slam/include/System.h"
 
-#if USE_FPGA == 1
+#include "orb_slam/include/FPGA.h"
+
+
+#if USE_RECONOS == 1
 
 extern "C" {
     #include "reconos.h"
@@ -26,24 +29,25 @@ void LoadImages(const string &strPathToSequence, vector<string> &vstrImageLeft,
 
 int main(int argc, char **argv)
 {
-    if(argc != 4)
+    if(argc != 5)
     {
-        cerr << endl << "Usage: ./stereo_kitti path_to_vocabulary path_to_settings path_to_sequence" << endl;
+        cerr << endl << "Usage: ./stereo_kitti path_to_vocabulary path_to_settings path_to_sequence number_of_pictures" << endl;
         return 1;
     }
 
+#if USE_RECONOS == 1
 
+    #warning main.cc: USE ReconOS enabled
     //Reconos Stuff
 
-#if USE_FPA==1
     reconos_init();
 	reconos_app_init();
 	int clk = reconos_clock_threads_set(100000);
 
     reconos_thread_create_hwt_fast(0);
+    
 
 #endif
-
 /*
     uint8_t image[1000*1000];
 
@@ -67,11 +71,20 @@ int main(int argc, char **argv)
     vector<double> vTimestamps;
     LoadImages(string(argv[3]), vstrImageLeft, vstrImageRight, vTimestamps);
 
-    const int nImages = vstrImageLeft.size();
+    int nImages = vstrImageLeft.size();
+
+    int _nImages = atoi(argv[4]);
+    if(_nImages != 0)
+    {
+        nImages = _nImages;
+    }
+
+    cout << "Number of Images:" << nImages << "; Argument: " << _nImages << endl;
+    
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
 #if USE_FPGA == 0
-    ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::STEREO,true);
+    ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::STEREO,false);
 #else
     ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::STEREO,false);
 #endif
