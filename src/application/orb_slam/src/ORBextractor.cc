@@ -782,14 +782,33 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
         const int maxBorderY = mvImagePyramid[level].rows-EDGE_THRESHOLD+3;
 
 
-#if USE_FPGA==1 
+#if 1 
+        #warning ORBextractor.cc: USE_FPGA enabled
+        uint32_t feature_cnt = 0;
         vector<uint32_t> kpts;
         FPGA::Compute_Keypoints( mvImagePyramid[level].data , mvImagePyramid[level].cols, mvImagePyramid[level].rows, nfeatures, kpts );
 
         for(vector<uint32_t>::iterator vit=kpts.begin(); vit!=kpts.end();vit++)
         {
-            vToDistributeKeys.push_back(KeyPoint((float)(*vit & 0x0000ffff), (float)((*vit & 0xffff0000)>>16), 7.f, -1, 0));
+            vToDistributeKeys.push_back(KeyPoint((float)(((uint32_t)*vit) & 0x0000ffff), (float)((((uint32_t)*vit) & 0xffff0000)>>16), 7.f, -1, 0));
+            feature_cnt++;
         }
+
+        //std::cout << "Feature Count = " << feature_cnt << std::endl;
+
+#elif 0
+        vector<cv::KeyPoint> vKeysCell;
+        FPGA::Compute_Keypoints( mvImagePyramid[level].data , mvImagePyramid[level].cols, mvImagePyramid[level].rows, nfeatures, vKeysCell );
+        if(!vKeysCell.empty())
+        {
+            for(vector<cv::KeyPoint>::iterator vit=vKeysCell.begin(); vit!=vKeysCell.end();vit++)
+            {
+
+                vToDistributeKeys.push_back(*vit);
+            }
+        }
+
+
 
 #else
 

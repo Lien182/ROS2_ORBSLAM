@@ -13,6 +13,9 @@ using namespace std;
 
 namespace FPGA{
 
+
+    void FPGA_Init();
+
     void FPGA_FAST( InputArray image, CV_OUT std::vector<KeyPoint>& keypoints, int threshold, bool nonmaxSuppression=true );
 
     void Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t image_height, uint32_t nfeatures, vector<uint32_t> & keypoints  );

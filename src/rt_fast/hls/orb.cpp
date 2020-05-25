@@ -28,8 +28,8 @@ const int minThFAST = 7;
 template<int PSize,int KERNEL_SIZE, int SRC_T,int ROWS,int COLS>
 void _FAST_t_opr(
         hls::Mat<ROWS,COLS,SRC_T>    &_src,
-        hls::stream<uint32> &_keypoints,
-        HLS_TNAME(SRC_T)                    _threshold,
+        hls::stream<uint32>     &_keypoints,
+        HLS_TNAME(SRC_T)        _threshold,
         bool                    _nonmax_supression,
         int                     (&flag)[PSize][2], 
         int &nPoints
@@ -157,53 +157,49 @@ void  _FASTX(
 
 
 
-void mat_copy( uint8 * data, hls::Mat<FAST_WINDOW_SIZE,FAST_WINDOW_SIZE,HLS_8UC1>  &_dest, int iniY, int iniX, int cache_cnt, uint32 offset)
+void mat_copy( uint8_t * data, hls::Mat<FAST_WINDOW_SIZE,FAST_WINDOW_SIZE,HLS_8UC1>  &_dest, int iniY, int iniX, int cache_cnt,uint32_t image_ptr_offset, uint32_t image_width)
 {
     for(int i = 0; i < (FAST_WINDOW_SIZE); i++)
     {
-        for(int j = 0; j < (FAST_WINDOW_SIZE); j++)
-        {
-            _dest.write(data[(j+iniY)+ ((iniX+i+cache_cnt) %IMAGE_CACHE_HEIGHT) *IMAGE_CACHE_WIDTH]);
-        }
-    }
-}
+        uint32_t line_index = (iniY+i);
+        uint32_t offset = (image_ptr_offset +  line_index*(image_width))&3;
 
-void array_copy( uint8_t * data, uint8_t * _dest, int iniY, int iniX, int cache_cnt, uint32 offset)
-{
-    for(int i = 0; i < (FAST_WINDOW_SIZE); i++)
-    {
         for(int j = 0; j < (FAST_WINDOW_SIZE); j++)
         {
-            _dest[j+i*50] = data[offset + (j+iniY)+ ((iniX+i+cache_cnt) %IMAGE_CACHE_HEIGHT) *IMAGE_CACHE_WIDTH];
+            _dest.write(data[offset + (j+iniX)+ (line_index %IMAGE_CACHE_HEIGHT) *IMAGE_CACHE_WIDTH]);
         }
     }
 }
 
 
-#define read_next_lines {for(int i = 0; i < FAST_WINDOW_SIZE; i++){ \
-                                    offset = (image_ptr + cache_cnt*(image_width))&3; \
-                                    MEM_READ(((image_ptr + cache_cnt*(image_width))&(~3)), image_data + IMAGE_CACHE_WIDTH*(cache_cnt%IMAGE_CACHE_HEIGHT),\
-                                    ((image_width+offset+3)&(~3)));} cache_cnt+=50;}
+
+#define read_next_lines {for(int __i = 0; __i < FAST_WINDOW_SIZE; __i++){ \
+                                    uint32_t _offset = (image_ptr + cache_cnt*(image_width))&3; \
+                                    MEM_READ(((image_ptr + cache_cnt*(image_width))&(~3)), &image_data[IMAGE_CACHE_WIDTH*(cache_cnt%IMAGE_CACHE_HEIGHT)],((image_width+_offset+3)&(~3)));\
+                                    cache_cnt+=1;} }
 
 
 
 THREAD_ENTRY() {
 
     THREAD_INIT();
-	//uint32 initdata = GET_INIT_DATA();
+	uint32 initdata = GET_INIT_DATA();
 
-    uint8 image_data[IMAGE_CACHE_WIDTH*IMAGE_CACHE_HEIGHT];
+
+    uint8_t image_data[IMAGE_CACHE_WIDTH*IMAGE_CACHE_HEIGHT];
 
 	while(1)
 	{
-        uint32 cache_cnt =0 ;
+        uint32 cache_cnt = 0;
        
 
-		uint32 image_ptr    = MBOX_GET(resources_fast_request);
-		uint32 image_width  = MBOX_GET(resources_fast_request);
-		uint32 image_height = MBOX_GET(resources_fast_request);
+		uint32    image_ptr    = MBOX_GET(initdata*2);
+		uint32    image_width  = MBOX_GET(initdata*2);
+		uint32   image_height = MBOX_GET(initdata*2);
 
-        uint32 offset = (image_ptr + cache_cnt*image_width) & 3;
+        
+
+        uint32 image_ptr_offset = image_ptr & 3;
         
 		const int minBorderX = EDGE_THRESHOLD-3;
         const int minBorderY = minBorderX;
@@ -218,7 +214,7 @@ THREAD_ENTRY() {
         const int nCols = width/50;
         const int nRows = height/50;
         
-        //read_next_lines;
+        read_next_lines;
 
 
 
@@ -238,7 +234,7 @@ THREAD_ENTRY() {
 
 			for(int j=0; j<nCols; j++)
 			{
-				const int iniX =minBorderX+j*wCell; //this was float
+               const int iniX =minBorderX+j*wCell; //this was float
 				int maxX = iniX+wCell+6;//this was float
 				if(iniX>=maxBorderX-6)
 					continue;
@@ -256,14 +252,14 @@ THREAD_ENTRY() {
                 //#pragma HLS stream depth=200 variable=cell_stream.data_stream
                 #pragma HLS dataflow
                 #pragma HLS stream depth=2500 variable=cell_stream.data_stream
-                #pragma AP array_stream variable=vKeysCell depth=256
-                {   
+                #pragma HLS stream depth=256  variable=vKeysCell
+                 {   
 
                     
-                    mat_copy( image_data, cell_stream, iniY,  iniX,  cache_cnt, offset);
+                    mat_copy( image_data, cell_stream, iniY,  iniX,  cache_cnt, image_ptr_offset, image_width);
 				    //array_copy( image_data, cell_array, iniY,  iniX,  cache_cnt);
 				    
-                    _FASTX(cell_stream, vKeysCell,  iniThFAST, true, nPoints);
+                    _FASTX(cell_stream, vKeysCell,  minThFAST, true, nPoints);
                     //for(int i = 0; i < 100; i+=2)
                     //MBOX_PUT(resources_fast_response, (uint32)image_data[0]);
 
@@ -274,7 +270,9 @@ THREAD_ENTRY() {
                         uint32 tmp = vKeysCell.read();
                         uint32 x = tmp & 0x0000ffff;
                         uint32 y = (tmp & 0xffff0000) >> 16;
-                        MBOX_PUT(resources_fast_response, (x + j*wCell) | ((y + i*hCell) << 16)); 
+     
+                            MBOX_PUT(initdata*2+1, (x + j*wCell) | ((y + i*hCell) << 16)); 
+                        
                     }
                                         
                         //MBOX_PUT(resources_fast_response, (vKeysCell[i].x) | ((vKeysCell[i].y) << 16));                 
@@ -300,9 +298,8 @@ THREAD_ENTRY() {
 				
 			}
 		}
-        
-        MBOX_PUT(resources_fast_response, 0xffffffff);
-         
+
+        MBOX_PUT(initdata*2+1, 0xffffffff);
 	}
 
 }

@@ -24,8 +24,7 @@ extern "C" {
 
 using namespace std;
 
-void LoadImages(const string &strPathToSequence, vector<string> &vstrImageLeft,
-                vector<string> &vstrImageRight, vector<double> &vTimestamps);
+void LoadImages(const string &strPathToSequence,  vector<double> &vTimestamps);
 
 int main(int argc, char **argv)
 {
@@ -43,8 +42,10 @@ int main(int argc, char **argv)
     reconos_init();
 	reconos_app_init();
 	int clk = reconos_clock_threads_set(100000);
-
-    reconos_thread_create_hwt_fast(0);
+    
+    reconos_thread_create_hwt_fast((void*)0);
+    reconos_thread_create_hwt_fast((void*)1);
+    FPGA::FPGA_Init();
 
 #endif
 /*
@@ -63,14 +64,15 @@ int main(int argc, char **argv)
 
     return 0;
 */
+    uint32_t img_cnt = 0;
 
     // Retrieve paths to images
-    vector<string> vstrImageLeft;
-    vector<string> vstrImageRight;
+    //vector<string> vstrImageLeft;
+    //vector<string> vstrImageRight;
     vector<double> vTimestamps;
-    LoadImages(string(argv[3]), vstrImageLeft, vstrImageRight, vTimestamps);
+    LoadImages(string(argv[3]), vTimestamps);
 
-    int nImages = vstrImageLeft.size();
+    int nImages = vTimestamps.size();
 
     int _nImages = atoi(argv[4]);
     if(_nImages != 0)
@@ -99,14 +101,26 @@ int main(int argc, char **argv)
     cv::Mat imLeft, imRight;
     for(int ni=0; ni<nImages; ni++)
     {
+
+        const int nTimes = vTimestamps.size();
+
+
+        stringstream ss;
+        ss << setfill('0') << setw(6) << img_cnt;
+        string strImageLeft  = string(argv[3]) + "/image_0/" + ss.str() + ".png";
+        string strImageRight = string(argv[3]) + "/image_1/" + ss.str() + ".png";
+
+        img_cnt++;
+
+
         // Read left and right images from file
-        imLeft = cv::imread(vstrImageLeft[ni],CV_LOAD_IMAGE_UNCHANGED);
-        imRight = cv::imread(vstrImageRight[ni],CV_LOAD_IMAGE_UNCHANGED);
+        imLeft = cv::imread(strImageLeft,CV_LOAD_IMAGE_UNCHANGED);
+        imRight = cv::imread(strImageRight,CV_LOAD_IMAGE_UNCHANGED);
         double tframe = vTimestamps[ni];
 
         if(imLeft.empty())
         {
-            cerr << endl << "Failed to load image at: " << string(vstrImageLeft[ni]) << endl;
+            cerr << endl << "Failed to load image at: " << string(strImageLeft) << endl;
             return 1;
         }
 
@@ -162,8 +176,8 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void LoadImages(const string &strPathToSequence, vector<string> &vstrImageLeft,
-                vector<string> &vstrImageRight, vector<double> &vTimestamps)
+void LoadImages(const string &strPathToSequence,
+                 vector<double> &vTimestamps)
 {
     ifstream fTimes;
     string strPathTimeFile = strPathToSequence + "/times.txt";
@@ -180,20 +194,5 @@ void LoadImages(const string &strPathToSequence, vector<string> &vstrImageLeft,
             ss >> t;
             vTimestamps.push_back(t);
         }
-    }
-
-    string strPrefixLeft = strPathToSequence + "/image_0/";
-    string strPrefixRight = strPathToSequence + "/image_1/";
-
-    const int nTimes = vTimestamps.size();
-    vstrImageLeft.resize(nTimes);
-    vstrImageRight.resize(nTimes);
-
-    for(int i=0; i<nTimes; i++)
-    {
-        stringstream ss;
-        ss << setfill('0') << setw(6) << i;
-        vstrImageLeft[i] = strPrefixLeft + ss.str() + ".png";
-        vstrImageRight[i] = strPrefixRight + ss.str() + ".png";
     }
 }
