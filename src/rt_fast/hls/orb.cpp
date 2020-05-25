@@ -191,11 +191,13 @@ THREAD_ENTRY() {
 	while(1)
 	{
         uint32 cache_cnt = 0;
+        uint32 nWrittenPoints = 0;
        
 
-		uint32    image_ptr    = MBOX_GET(initdata*2);
-		uint32    image_width  = MBOX_GET(initdata*2);
+		uint32   image_ptr    = MBOX_GET(initdata*2);
+		uint32   image_width  = MBOX_GET(initdata*2);
 		uint32   image_height = MBOX_GET(initdata*2);
+        uint32   feature_dest = MBOX_GET(initdata*2);
 
         
 
@@ -243,27 +245,24 @@ THREAD_ENTRY() {
 
 				//hls::Point_<uint16> vKeysCell[256];
                 int nPoints;
+                uint32 feature_cnt;
 
                 hls::Mat<FAST_WINDOW_SIZE,FAST_WINDOW_SIZE,HLS_8UC1> cell_stream(FAST_WINDOW_SIZE,FAST_WINDOW_SIZE);
                 //uint8_t cell_array[50*50];
                 
                 hls::stream<uint32> vKeysCell;
+                hls::stream<uint32> KeyPointStream;
 
                 //#pragma HLS stream depth=200 variable=cell_stream.data_stream
-                #pragma HLS dataflow
+                #pragma HLS PIPELINE
                 #pragma HLS stream depth=2500 variable=cell_stream.data_stream
                 #pragma HLS stream depth=256  variable=vKeysCell
+                #pragma HLS stream depth=256  variable=KeyPointStream
                  {   
-
                     
                     mat_copy( image_data, cell_stream, iniY,  iniX,  cache_cnt, image_ptr_offset, image_width);
-				    //array_copy( image_data, cell_array, iniY,  iniX,  cache_cnt);
-				    
-                    _FASTX(cell_stream, vKeysCell,  minThFAST, true, nPoints);
-                    //for(int i = 0; i < 100; i+=2)
-                    //MBOX_PUT(resources_fast_response, (uint32)image_data[0]);
 
-                    
+                    _FASTX(cell_stream, vKeysCell,  minThFAST, true, nPoints);
 
                     for(int k = 0; k < nPoints; k++)
                     {
@@ -271,12 +270,22 @@ THREAD_ENTRY() {
                         uint32 x = tmp & 0x0000ffff;
                         uint32 y = (tmp & 0xffff0000) >> 16;
      
-                            MBOX_PUT(initdata*2+1, (x + j*wCell) | ((y + i*hCell) << 16)); 
-                        
+                        KeyPointStream.write((x + j*wCell) | ((y + i*hCell) << 16));
+                        feature_dest += 4;
+                       
                     }
-                                        
-                        //MBOX_PUT(resources_fast_response, (vKeysCell[i].x) | ((vKeysCell[i].y) << 16));                 
+
+                    
+
+                    MEM_WRITE_FROM_STREAM(KeyPointStream,feature_dest,nPoints*4);
+
+               
+                    
                 }
+                
+                
+                nWrittenPoints += nPoints;  
+
 	
                /*
 				if(nPoints == 0)
@@ -299,7 +308,7 @@ THREAD_ENTRY() {
 			}
 		}
 
-        MBOX_PUT(initdata*2+1, 0xffffffff);
+        MBOX_PUT(initdata*2+1, nWrittenPoints);
 	}
 
 }
