@@ -254,6 +254,7 @@ THREAD_ENTRY() {
                 hls::stream<uint32> KeyPointStream;
 
                 //#pragma HLS stream depth=200 variable=cell_stream.data_stream
+                //#pragma HLS dataflow
                 #pragma HLS PIPELINE
                 #pragma HLS stream depth=2500 variable=cell_stream.data_stream
                 #pragma HLS stream depth=256  variable=vKeysCell
@@ -269,23 +270,19 @@ THREAD_ENTRY() {
                         uint32 tmp = vKeysCell.read();
                         uint32 x = tmp & 0x0000ffff;
                         uint32 y = (tmp & 0xffff0000) >> 16;
-     
-                        KeyPointStream.write((x + j*wCell) | ((y + i*hCell) << 16));
-                        feature_dest += 4;
+
+                        uint32 _res[1];
+                        _res[0] = (x + j*wCell) | ((y + i*hCell) << 16);
+
+                        MEM_WRITE(_res,feature_dest+k*4,4);
+
+                         
                        
-                    }
+                    }             
 
-                    
-
-                    MEM_WRITE_FROM_STREAM(KeyPointStream,feature_dest,nPoints*4);
-
-               
-                    
+                   
                 }
-                
-                
-                nWrittenPoints += nPoints;  
-
+                nWrittenPoints+=nPoints;
 	
                /*
 				if(nPoints == 0)
