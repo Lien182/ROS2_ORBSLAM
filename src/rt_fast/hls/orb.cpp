@@ -251,14 +251,12 @@ THREAD_ENTRY() {
                 //uint8_t cell_array[50*50];
                 
                 hls::stream<uint32> vKeysCell;
-                hls::stream<uint32> KeyPointStream;
 
                 //#pragma HLS stream depth=200 variable=cell_stream.data_stream
                 //#pragma HLS dataflow
-                #pragma HLS PIPELINE
+                #pragma HLS PIPELINE 
                 #pragma HLS stream depth=2500 variable=cell_stream.data_stream
                 #pragma HLS stream depth=256  variable=vKeysCell
-                #pragma HLS stream depth=256  variable=KeyPointStream
                  {   
                     
                     mat_copy( image_data, cell_stream, iniY,  iniX,  cache_cnt, image_ptr_offset, image_width);
@@ -275,14 +273,12 @@ THREAD_ENTRY() {
                         _res[0] = (x + j*wCell) | ((y + i*hCell) << 16);
 
                         MEM_WRITE(_res,feature_dest+k*4,4);
-
-                         
-                       
+                        nWrittenPoints++;
                     }             
 
                    
                 }
-                nWrittenPoints+=nPoints;
+                
 	
                /*
 				if(nPoints == 0)
