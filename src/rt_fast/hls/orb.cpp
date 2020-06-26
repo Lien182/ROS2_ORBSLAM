@@ -13,7 +13,8 @@ using namespace hls;
 const int EDGE_THRESHOLD = 19;
 
 const int iniThFAST = 20;
-const int minThFAST = 7;
+//const int minThFAST = 7;
+const int minThFAST = 14;
 
 #define W 30
 
@@ -25,14 +26,16 @@ const int minThFAST = 7;
 
 
 //generate array 
-template<int PSize,int KERNEL_SIZE, int SRC_T,int ROWS,int COLS>
+template<int PSize,int KERNEL_SIZE, int N, int SRC_T,int ROWS,int COLS>
 void _FAST_t_opr(
         hls::Mat<ROWS,COLS,SRC_T>    &_src,
-        hls::stream<uint32>     &_keypoints,
+        uint32_t (&_vKeysCell)[N],
         HLS_TNAME(SRC_T)        _threshold,
         bool                    _nonmax_supression,
         int                     (&flag)[PSize][2], 
-        int &nPoints
+        uint32 &nPoints,   
+        uint32_t x_offset,
+        uint32_t y_offset
         )
 {
     typedef typename pixel_op_type<HLS_TNAME(SRC_T)>::T INPUT_T;
@@ -50,7 +53,7 @@ void _FAST_t_opr(
     int  flag_d[PSize+PSize/2+1];
 #pragma HLS ARRAY_PARTITION variable=flag_val dim=0
 #pragma HLS ARRAY_PARTITION variable=flag_d dim=0
-    int index=0;
+    uint32 index=0;
     int offset=KERNEL_SIZE/2;
 
     if(_nonmax_supression)
@@ -58,6 +61,7 @@ void _FAST_t_opr(
         offset=offset+1;
     }
  loop_height: for(HLS_SIZE_T i=0;i<rows+offset;i++) {
+#pragma HLS UNROLL factor=25
     loop_width: for(HLS_SIZE_T j=0;j<cols+offset;j++) {
 #pragma HLS LOOP_FLATTEN off
 #pragma HLS PIPELINE II=1
@@ -100,13 +104,14 @@ void _FAST_t_opr(
                 bool iscorner=fast_judge<PSize>(win,(INPUT_T)_threshold,flag_val,flag_d,flag,core,_nonmax_supression);
                 if(iscorner&&!_nonmax_supression)
                 {
-                    //if(index<N)
-                    {
-                        _keypoints.write((j-offset) | ((i-offset) << 16));
-                    //_keypoints[index].x=j-offset;
-                    //_keypoints[index].y=i-offset;
-                    index++;
-                    }
+                        if(index<N)
+                        {
+                            //_keypoints[index].x=j-offset;
+                            //_keypoints[index].y=i-offset;
+
+                            _vKeysCell[index] = (((uint32_t)(j-offset)) + x_offset) | ((((uint32_t)(i-offset)) + y_offset) << 16);
+                            index++;
+                        }
                 }
             }
             if(i>=rows||j>=cols)
@@ -122,11 +127,11 @@ void _FAST_t_opr(
                     bool iscorner=fast_nonmax(core_win);
                     if(iscorner)
                     {
-                        //if(index<N)
+                        if(index<N)
                         {
-                            _keypoints.write((j-offset) | ((i-offset) << 16));
                             //_keypoints[index].x=j-offset;
                             //_keypoints[index].y=i-offset;
+                            _vKeysCell[index] = (((uint32_t)(j-offset)) + x_offset) | ((((uint32_t)(i-offset)) + y_offset) << 16);
                             index++;
                         }
                     }
@@ -139,19 +144,21 @@ void _FAST_t_opr(
 	nPoints = index;
 }
 
-template<int SRC_T,int ROWS,int COLS>
+template<int N, int SRC_T,int ROWS,int COLS>
 void  _FASTX(
         Mat<ROWS,COLS,SRC_T>    &_src,
-        hls::stream<uint32> &_keypoints,
+        uint32_t (&_vKeysCell)[N],
         HLS_TNAME(SRC_T)    _threshold,
         bool   _nomax_supression,
-        int &_nPoints
+        uint32 &_nPoints,
+        uint32_t x_offset,
+        uint32_t y_offset
         )
 {
 #pragma HLS INLINE
     int flag[16][2]={{3,0},{4,0},{5,1},{6,2},{6,3},{6,4},{5,5},{4,6},
         {3,6},{2,6},{1,5},{0,4},{0,3},{0,2},{1,1},{2,0}};
-    _FAST_t_opr<16,7>(_src,_keypoints,_threshold,_nomax_supression,flag,_nPoints);
+    _FAST_t_opr<16,7>(_src,_vKeysCell,_threshold,_nomax_supression,flag,_nPoints, x_offset, y_offset);
 }
 
 
@@ -181,6 +188,8 @@ void mat_copy( uint8_t * data, hls::Mat<FAST_WINDOW_SIZE,FAST_WINDOW_SIZE,HLS_8U
 
 
 THREAD_ENTRY() {
+
+    uint32_t nresults;
 
     THREAD_INIT();
 	uint32 initdata = GET_INIT_DATA();
@@ -243,39 +252,32 @@ THREAD_ENTRY() {
 				if(maxX>maxBorderX)
 					maxX = maxBorderX;
 
-				//hls::Point_<uint16> vKeysCell[256];
-                int nPoints;
-                uint32 feature_cnt;
+				uint32_t vKeysCell[256];
+                uint32 nPoints;
 
                 hls::Mat<FAST_WINDOW_SIZE,FAST_WINDOW_SIZE,HLS_8UC1> cell_stream(FAST_WINDOW_SIZE,FAST_WINDOW_SIZE);
                 //uint8_t cell_array[50*50];
                 
-                hls::stream<uint32> vKeysCell;
+                //hls::stream<uint32> vKeysCell;
 
                 //#pragma HLS stream depth=200 variable=cell_stream.data_stream
-                //#pragma HLS dataflow
-                #pragma HLS PIPELINE 
+                //#pragma HLS PIPELINE 
                 #pragma HLS stream depth=2500 variable=cell_stream.data_stream
-                #pragma HLS stream depth=256  variable=vKeysCell
+                //#pragma HLS stream depth=1024 variable=vKeysCell
                  {   
-                    
+                    nPoints = 0;
                     mat_copy( image_data, cell_stream, iniY,  iniX,  cache_cnt, image_ptr_offset, image_width);
+                    #pragma HLS INLINE
+                    _FASTX(cell_stream, vKeysCell,  minThFAST, true, nPoints, j*wCell, i*hCell);
+                     
 
-                    _FASTX(cell_stream, vKeysCell,  minThFAST, true, nPoints);
 
-                    for(int k = 0; k < nPoints; k++)
-                    {
-                        uint32 tmp = vKeysCell.read();
-                        uint32 x = tmp & 0x0000ffff;
-                        uint32 y = (tmp & 0xffff0000) >> 16;
+                    MEM_WRITE(vKeysCell,feature_dest,nPoints*4);
+                    feature_dest+=(4*nPoints);
+                        
+                               
 
-                        uint32 _res[1];
-                        _res[0] = (x + j*wCell) | ((y + i*hCell) << 16);
-
-                        MEM_WRITE(_res,feature_dest+k*4,4);
-                        nWrittenPoints++;
-                    }             
-
+                    nWrittenPoints+= nPoints;
                    
                 }
                 

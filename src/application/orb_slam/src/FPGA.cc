@@ -37,9 +37,20 @@ static pthread_mutex_t fpga_mutex_0=PTHREAD_MUTEX_INITIALIZER;
 
 static pthread_mutex_t fpga_mutex_1=PTHREAD_MUTEX_INITIALIZER;
 
+static uint32_t * result_buffer_1;
+static uint32_t * result_buffer_2;
+
+
 void FPGA::FPGA_Init(void)
 {
     sem_init(&fpga_sema,0,2);
+
+    result_buffer_1 = (uint32_t *)malloc(sizeof(uint32_t) * 1024 * 8);
+    result_buffer_2 = (uint32_t *)malloc(sizeof(uint32_t) * 1024 * 8);
+
+    if(result_buffer_1 == NULL || result_buffer_2 == NULL)
+        printf("FPGA: Error while allocating memory \n");
+
 }
 
 void FPGA::FPGA_FAST( InputArray image, CV_OUT std::vector<KeyPoint>& keypoints,
@@ -59,34 +70,28 @@ void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t
 
 #if 1
     #warning FPGA.cc: USE FPGA enabled
-    uint32_t res; 
+    uint32_t nres; 
 
     sem_wait(&fpga_sema);
 
     if(pthread_mutex_trylock( &fpga_mutex_0 ) == 0)
     {   
+        //std::cout << "FPGA0: Send request" << std::endl;
         mbox_put(resources_fast_request_0, (uint32_t)image_ptr);
         mbox_put(resources_fast_request_0, image_width);
         mbox_put(resources_fast_request_0, image_height);
+        mbox_put(resources_fast_request_0, (uint32_t)result_buffer_1);
 
         uint32_t tmp = (uint32_t)image_ptr;
 
         //std::cout << "image_ptr " <<  tmp << "; image_width"  <<  image_width << "; image_height" <<  image_height << std::endl;
 
-        int cnt = 0;
+        nres =  mbox_get(resources_fast_response_0);
+        //std::cout << "FPGA0: Got " << nres << "results" << std::endl;
+        for(int i =0 ; i < nres; i++)
+            keypoints.push_back(result_buffer_1[i]);
 
-        do{
 
-            res = mbox_get(resources_fast_response_0);        
-            cnt++;
-            if(res != 0xffffffff)
-            {
-                keypoints.push_back(res);
-            }
-
-            //std::cout << cnt++ << " Got res: " << res << std::endl;
-
-        }while(res != 0xffffffff);
         //std::cout << cnt << " Got res: " << res << std::endl;
         pthread_mutex_unlock( &fpga_mutex_0 );
         sem_post(&fpga_sema);
@@ -94,29 +99,21 @@ void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t
     else
     {
         pthread_mutex_lock( &fpga_mutex_1 );
-
+        //std::cout << "FPGA1: Send request" << std::endl;
         mbox_put(resources_fast_request_1, (uint32_t)image_ptr);
         mbox_put(resources_fast_request_1, image_width);
         mbox_put(resources_fast_request_1, image_height);
+        mbox_put(resources_fast_request_1, (uint32_t)result_buffer_2);
 
         uint32_t tmp = (uint32_t)image_ptr;
 
         //std::cout << "image_ptr " <<  tmp << "; image_width"  <<  image_width << "; image_height" <<  image_height << std::endl;
 
-        int cnt = 0;
+        nres =  mbox_get(resources_fast_response_1);
+        //std::cout << "FPGA1: Got " << nres << "results" << std::endl;
+        for(int i =0 ; i < nres; i++)
+            keypoints.push_back(result_buffer_2[i]);
 
-        do{
-
-            res = mbox_get(resources_fast_response_1);        
-            cnt++;
-            if(res != 0xffffffff)
-            {
-                keypoints.push_back(res);
-            }
-
-            //std::cout << cnt++ << " Got res: " << res << std::endl;
-
-        }while(res != 0xffffffff);
         pthread_mutex_unlock(&fpga_mutex_1);
         sem_post(&fpga_sema);
     }

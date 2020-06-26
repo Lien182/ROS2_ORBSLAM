@@ -24,13 +24,15 @@ extern "C" {
 
 using namespace std;
 
+int bUseHw = 0;
+
 void LoadImages(const string &strPathToSequence,  vector<double> &vTimestamps);
 
 int main(int argc, char **argv)
 {
-    if(argc != 5)
+    if(argc != 6)
     {
-        cerr << endl << "Usage: ./stereo_kitti path_to_vocabulary path_to_settings path_to_sequence number_of_pictures" << endl;
+        cerr << endl << "Usage: ./stereo_kitti path_to_vocabulary path_to_settings path_to_sequence number_of_pictures use_hw" << endl;
         return 1;
     }
 
@@ -82,6 +84,19 @@ int main(int argc, char **argv)
 
     cout << "Number of Images:" << nImages << "; Argument: " << _nImages << endl;
     
+
+    if(strcmp(argv[5], "hw") == 0)
+    {
+        cout << "Use HW" << endl;
+        bUseHw = 1;
+    }
+    else
+    {
+        cout << "Use SW" << endl;
+        bUseHw = 0;
+    }
+    
+
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
 #if USE_FPGA == 0
@@ -141,7 +156,7 @@ int main(int argc, char **argv)
 
         double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
 
-        cout << ni << ": processing time: " << ttrack << endl;
+        cout << ni << ", " << ttrack << ";" << endl;
 
         vTimesTrack[ni]=ttrack;
 

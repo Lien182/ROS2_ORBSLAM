@@ -68,12 +68,16 @@
 using namespace cv;
 using namespace std;
 
+extern int bUseHw;
+
 namespace ORB_SLAM2
 {
 
 const int PATCH_SIZE = 31;
 const int HALF_PATCH_SIZE = 15;
 const int EDGE_THRESHOLD = 19;
+
+
 
 
 static float IC_Angle(const Mat& image, Point2f pt,  const vector<int> & u_max)
@@ -782,7 +786,10 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
         const int maxBorderY = mvImagePyramid[level].rows-EDGE_THRESHOLD+3;
 
 
-#if 1 
+
+if(bUseHw == 1)
+{
+
         #warning ORBextractor.cc: USE_FPGA enabled
         uint32_t feature_cnt = 0;
         vector<uint32_t> kpts;
@@ -795,8 +802,9 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
         }
 
         //std::cout << "Feature Count = " << feature_cnt << std::endl;
+}
 
-#elif 0
+/*
         vector<cv::KeyPoint> vKeysCell;
         FPGA::Compute_Keypoints( mvImagePyramid[level].data , mvImagePyramid[level].cols, mvImagePyramid[level].rows, nfeatures, vKeysCell );
         if(!vKeysCell.empty())
@@ -808,9 +816,12 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
             }
         }
 
+*/
+
+else
+{
 
 
-#else
 
         const float width = (maxBorderX-minBorderX);
         const float height = (maxBorderY-minBorderY);
@@ -841,13 +852,15 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
 
                 vector<cv::KeyPoint> vKeysCell;
                 FPGA::FPGA_FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
-                     vKeysCell,iniThFAST,true);
+                     vKeysCell,14,true);
 
+/*
                 if(vKeysCell.empty())
                 {
                     FPGA::FPGA_FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
                          vKeysCell,minThFAST,true);
                 }
+                */
 
                 if(!vKeysCell.empty())
                 {
@@ -862,7 +875,7 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
             }
         }
 
-     #endif
+    }
 
         vector<KeyPoint> & keypoints = allKeypoints[level];
         keypoints.reserve(nfeatures);
