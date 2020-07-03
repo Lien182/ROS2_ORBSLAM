@@ -31,15 +31,19 @@ extern "C" {
 
 #define IMAGE_CACHE_WIDTH   1400
 #define IMAGE_CACHE_HEIGHT  128
-
+#if USE_FPGA == 1
 static sem_t fpga_sema;
 static pthread_mutex_t fpga_mutex_0=PTHREAD_MUTEX_INITIALIZER;
 
 static pthread_mutex_t fpga_mutex_1=PTHREAD_MUTEX_INITIALIZER;
 
+#endif
+
 void FPGA::FPGA_Init(void)
 {
+#if USE_FPGA == 1
     sem_init(&fpga_sema,0,2);
+#endif
 }
 
 void FPGA::FPGA_FAST( InputArray image, CV_OUT std::vector<KeyPoint>& keypoints,
@@ -57,7 +61,7 @@ static const int minThFAST = 7;
 void FPGA::Compute_Keypoints( uint8_t* image_ptr, uint32_t image_width, uint32_t image_height, uint32_t nfeatures, vector<uint32_t> & keypoints )
 {
 
-#if 1
+#if USE_FPGA == 1
     #warning FPGA.cc: USE FPGA enabled
     uint32_t res; 
 

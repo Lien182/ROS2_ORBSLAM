@@ -782,7 +782,7 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
         const int maxBorderY = mvImagePyramid[level].rows-EDGE_THRESHOLD+3;
 
 
-#if 1 
+#if 0 
         #warning ORBextractor.cc: USE_FPGA enabled
         uint32_t feature_cnt = 0;
         vector<uint32_t> kpts;

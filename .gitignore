@@ -55,3 +55,5 @@ Thirdparty/*/build/
 build.sw/
 build.hw/
 .Xil/
+Vocabulary/ORBvoc.txt
+src/orbslam

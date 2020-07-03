@@ -5,11 +5,14 @@
 #include<chrono>
 
 #include<opencv2/core/core.hpp>
-
 #include "orb_slam/include/System.h"
-
 #include "orb_slam/include/FPGA.h"
 
+#include <memory>
+
+#include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/image.hpp"
+using std::placeholders::_1;
 
 #if USE_RECONOS == 1
 
@@ -24,151 +27,69 @@ extern "C" {
 
 using namespace std;
 
-void LoadImages(const string &strPathToSequence,  vector<double> &vTimestamps);
 
-int main(int argc, char **argv)
+class ros2_orbslam : public rclcpp::Node
 {
-    if(argc != 5)
+
+private:
+string path_voc;
+string path_settings;
+cv::Mat iRGB, iDepth;
+
+uint32_t bColorImageSet;
+uint32_t bDepthImageSet;
+    void color_callback(const sensor_msgs::msg::Image::SharedPtr msg) 
     {
-        cerr << endl << "Usage: ./stereo_kitti path_to_vocabulary path_to_settings path_to_sequence number_of_pictures" << endl;
-        return 1;
+      			
+		const Mat tImageRGB(msg->height, msg->width, CV_8UC3, (void*)&msg->data[0]);
+		cvtColor(tImageRGB, iRGB, CV_RGB2BGR);
+        bColorImageSet = 1;
     }
-
-#if USE_RECONOS == 1
-
-    #warning main.cc: USE ReconOS enabled
-    //Reconos Stuff
-
-    reconos_init();
-	reconos_app_init();
-	int clk = reconos_clock_threads_set(100000);
     
-    reconos_thread_create_hwt_fast((void*)0);
-    reconos_thread_create_hwt_fast((void*)1);
-    FPGA::FPGA_Init();
-
-#endif
-/*
-    uint8_t image[1000*1000];
-
-
-    for(int i = 0; i < 10; i++)
+    void depth_callback(const sensor_msgs::msg::Image::SharedPtr msg) 
     {
-        mbox_put(resources_fast_request, (uint32_t)image);
-	    mbox_put(resources_fast_request, 999);
-	    mbox_put(resources_fast_request, 999);
-
-        uint32_t res = mbox_get(resources_fast_response);
-        std::cout << "Got res: " << res << std::endl;
+      iDepth = cv::Mat(msg->height, msg->width, CV_16UC1, (void*)&msg->data[0]);
+      bDepthImageSet = 1;
     }
 
-    return 0;
-*/
-    uint32_t img_cnt = 0;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr color_subscription_;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr depth_subscription_;
 
-    // Retrieve paths to images
-    //vector<string> vstrImageLeft;
-    //vector<string> vstrImageRight;
-    vector<double> vTimestamps;
-    LoadImages(string(argv[3]), vTimestamps);
+public:
 
-    int nImages = vTimestamps.size();
-
-    int _nImages = atoi(argv[4]);
-    if(_nImages != 0)
+ros2_orbslam(string _path_voc, string _path_settings)
+    : Node("ros_orbslam")
     {
-        nImages = _nImages;
+      color_subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
+      "image_raw", 10, std::bind(&ros2_orbslam::color_callback, this, _1));
+      depth_subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
+      "depth_raw", 10, std::bind(&ros2_orbslam::depth_callback, this, _1));
     }
 
-    cout << "Number of Images:" << nImages << "; Argument: " << _nImages << endl;
-    
+int process()
+{
+    double tframe;
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
-#if USE_FPGA == 0
-    ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::STEREO,false);
-#else
-    ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::STEREO,false);
-#endif
-    // Vector for tracking time statistics
-    vector<float> vTimesTrack;
-    vTimesTrack.resize(nImages);
+    ORB_SLAM2::System SLAM(path_voc, path_settings,ORB_SLAM2::System::RGBD,true);
 
-    cout << endl << "-------" << endl;
-    cout << "Start processing sequence ..." << endl;
-    cout << "Images in the sequence: " << nImages << endl << endl;   
-
-    // Main loop
-    cv::Mat imLeft, imRight;
-    for(int ni=0; ni<nImages; ni++)
+     // Main loop
+    
+    for(int ni=0; ni<10000; ni++)
     {
-
-        const int nTimes = vTimestamps.size();
-
-
-        stringstream ss;
-        ss << setfill('0') << setw(6) << img_cnt;
-        string strImageLeft  = string(argv[3]) + "/image_0/" + ss.str() + ".png";
-        string strImageRight = string(argv[3]) + "/image_1/" + ss.str() + ".png";
-
-        img_cnt++;
-
-
-        // Read left and right images from file
-        imLeft = cv::imread(strImageLeft,CV_LOAD_IMAGE_UNCHANGED);
-        imRight = cv::imread(strImageRight,CV_LOAD_IMAGE_UNCHANGED);
-        double tframe = vTimestamps[ni];
-
-        if(imLeft.empty())
-        {
-            cerr << endl << "Failed to load image at: " << string(strImageLeft) << endl;
-            return 1;
-        }
-
-#ifdef COMPILEDWITHC11
-        std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-#else
-        std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
-#endif
-
+        while((bDepthImageSet==0) || (bColorImageSet == 0));
         // Pass the images to the SLAM system
-        SLAM.TrackStereo(imLeft,imRight,tframe);
+        SLAM.TrackRGBD(iRGB,iDepth,tframe);
+        bDepthImageSet = 0;
+        bColorImageSet = 0;
+        tframe+= 0.010;
 
-#ifdef COMPILEDWITHC11
-        std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
-#else
-        std::chrono::monotonic_clock::time_point t2 = std::chrono::monotonic_clock::now();
-#endif
 
-        double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
 
-        cout << ni << ": processing time: " << ttrack << endl;
-
-        vTimesTrack[ni]=ttrack;
-
-        // Wait to load the next frame
-        double T=0;
-        if(ni<nImages-1)
-            T = vTimestamps[ni+1]-tframe;
-        else if(ni>0)
-            T = tframe-vTimestamps[ni-1];
-
-        if(ttrack<T)
-            usleep((T-ttrack)*1e6);
     }
 
     // Stop all threads
     SLAM.Shutdown();
-
-    // Tracking time statistics
-    sort(vTimesTrack.begin(),vTimesTrack.end());
-    float totaltime = 0;
-    for(int ni=0; ni<nImages; ni++)
-    {
-        totaltime+=vTimesTrack[ni];
-    }
-    cout << "-------" << endl << endl;
-    cout << "median tracking time: " << vTimesTrack[nImages/2] << endl;
-    cout << "mean tracking time: " << totaltime/nImages << endl;
 
     // Save camera trajectory
     SLAM.SaveTrajectoryKITTI("CameraTrajectory.txt");
@@ -176,23 +97,16 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void LoadImages(const string &strPathToSequence,
-                 vector<double> &vTimestamps)
+
+
+};
+
+
+
+int main(int argc, char * argv[])
 {
-    ifstream fTimes;
-    string strPathTimeFile = strPathToSequence + "/times.txt";
-    fTimes.open(strPathTimeFile.c_str());
-    while(!fTimes.eof())
-    {
-        string s;
-        getline(fTimes,s);
-        if(!s.empty())
-        {
-            stringstream ss;
-            ss << s;
-            double t;
-            ss >> t;
-            vTimestamps.push_back(t);
-        }
-    }
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<ros2_orbslam>(argv[1], argv[2]));
+  rclcpp::shutdown();
+  return 0;
 }

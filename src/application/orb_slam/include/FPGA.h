@@ -7,9 +7,8 @@
 using namespace cv;
 using namespace std;
 
-#define USE_RECONOS 1
-#define USE_FPGA 1
-#define FPGA_SIMULATION 0 
+#define USE_RECONOS 0
+#define USE_FPGA 0
 
 namespace FPGA{
 
